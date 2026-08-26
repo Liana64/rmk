@@ -8,6 +8,8 @@ use trouble_host::prelude::{DefaultPacketPool, GattConnection};
 
 #[cfg(feature = "host")]
 use crate::ble::ble_server::Server;
+#[cfg(feature = "split")]
+use crate::event::PeripheralBatteryEvent;
 use crate::event::{ActionEvent, BatteryStatusEvent, LayerChangeEvent, ModifierEvent, SleepStateEvent, WpmUpdateEvent};
 
 pub(crate) const DONGLE_EVENT_SERVICE_UUID: u128 = 0x11b64cc4_93a2_470f_8311_c44fdc48c43c;
@@ -25,6 +27,8 @@ pub(crate) enum DongleEvent {
     Wpm(WpmUpdateEvent),
     Sleep(SleepStateEvent),
     Battery(BatteryStatusEvent),
+    #[cfg(feature = "split")]
+    PeripheralBattery(PeripheralBatteryEvent),
 }
 
 /// Stream keyboard events to the dongle until the connection drops.
@@ -43,10 +47,20 @@ pub(crate) async fn run(server: &Server<'_>, conn: &GattConnection<'_, '_, Defau
     let mut wpm = WpmUpdateEvent::subscriber();
     let mut sleep = SleepStateEvent::subscriber();
     let mut battery = BatteryStatusEvent::subscriber();
+    #[cfg(feature = "split")]
+    let mut peripheral_battery = PeripheralBatteryEvent::subscriber();
 
     embassy_futures::join::join(
         async {
             loop {
+                let next_peripheral_battery = async {
+                    #[cfg(feature = "split")]
+                    {
+                        DongleEvent::PeripheralBattery(peripheral_battery.next_event().await)
+                    }
+                    #[cfg(not(feature = "split"))]
+                    core::future::pending::<DongleEvent>().await
+                };
                 let event = futures::select_biased! {
                     e = action.next_event().fuse() => DongleEvent::Action(e),
                     e = modifier.next_event().fuse() => DongleEvent::Modifier(e),
@@ -54,6 +68,7 @@ pub(crate) async fn run(server: &Server<'_>, conn: &GattConnection<'_, '_, Defau
                     e = wpm.next_event().fuse() => DongleEvent::Wpm(e),
                     e = sleep.next_event().fuse() => DongleEvent::Sleep(e),
                     e = battery.next_event().fuse() => DongleEvent::Battery(e),
+                    e = next_peripheral_battery.fuse() => e,
                 };
                 let _ = queue.try_send(event);
             }
