@@ -273,11 +273,11 @@ pub(crate) mod subrating {
     //    |-------+------+-----+------+---------+------------|---------|
     //    |    60 |  450 |  10 |   75 |      80 |  41 /   82 |      21 |
     //    |    30 |  225 |  30 |  225 |      75 | 116 /  232 |      21 |
-    //    |    60 |  450 |  30 |  225 |      59 | 116 /  232 |      21 |
+    // ==>|    60 |  450 |  30 |  225 |      59 | 116 /  232 |      21 |<== Connected Sleep
     //    |   180 | 1350 |  30 |  225 |      48 | 116 /  232 |      21 |
     //    |   300 | 2250 |  30 |  225 |      48 | 116 /  232 |      21 |
     //    |    30 |  225 |  60 |  450 |      63 | 228 /  457 |      21 |
-    // ==>|    60 |  450 |  60 |  450 |      48 | 228 /  457 |      21 |<== Connected Sleep
+    //    |    60 |  450 |  60 |  450 |      48 | 228 /  457 |      21 |
     //    |   180 | 1350 |  60 |  450 |      39 | 228 /  457 |      21 |
     //    |   300 | 2250 |  60 |  450 |      34 | 228 /  457 |      21 |
     //    |   300 | 2250 | 120 |  900 |      32 | 453 /  907 |      21 |
@@ -307,7 +307,7 @@ pub(crate) mod subrating {
     use bt_hci::param::{ConnHandle, Duration, Error as HciError};
     use trouble_host::prelude::*;
 
-    const SLEEP_HOST_CONN_SUBRATE: u16 = 60;
+    const SLEEP_HOST_CONN_SUBRATE: u16 = 30;
     const SLEEP_NO_HOST_SUBRATE: u16 = 125;
 
     // In some cases, the subrate request procedure does not complete with only one continuation.

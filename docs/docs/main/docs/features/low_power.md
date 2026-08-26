@@ -73,7 +73,7 @@ Two related behaviors are always on:
 
 Enable the `subrating` feature in your `Cargo.toml` to let a sleeping central skip connection events while still switching back to the fast intervals in one step.
 
-The key press that wakes the keyboard costs up to ~450ms (~225ms on average) when it lands on the peripheral half; keys on the central half are never delayed. The link is back on the active parameters right after that, which is cheap enough to shorten the timeout aggressively:
+The key press that wakes the keyboard costs up to ~232ms (~116ms on average) when it lands on the peripheral half; keys on the central half are never delayed. The link is back on the active parameters right after that, which is cheap enough to shorten the timeout aggressively:
 
 ```toml
 [rmk]
