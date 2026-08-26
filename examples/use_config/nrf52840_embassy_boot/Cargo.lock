@@ -2028,8 +2028,6 @@ dependencies = [
  "nrf-sdc",
  "panic-probe",
  "portable-atomic",
- "rand_chacha",
- "rand_core 0.6.4",
  "rmk",
  "static_cell",
  "xz2",
