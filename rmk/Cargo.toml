@@ -57,7 +57,7 @@ display-interface-i2c = { version = "0.5", optional = true }
 
 # Optional dependencies
 # BLE dependencies
-trouble-host = { git = "https://github.com/embassy-rs/trouble", rev = "088e09c451177d5db50cf3e58c68d05512265ba0", features = [
+trouble-host = { version = "0.8", features = [
     "gatt",
     "scan",
     "derive",
@@ -65,7 +65,7 @@ trouble-host = { git = "https://github.com/embassy-rs/trouble", rev = "088e09c45
     "serde",
     "default-packet-pool-size-32",
 ], optional = true }
-bt-hci = { version = "0.9", optional = true }
+bt-hci = { version = "0.10", optional = true }
 
 # nRF dependencies
 embassy-nrf = { version = "0.11", features = [
@@ -82,7 +82,7 @@ embassy-boot-rp = { version = "0.10.0", optional = true }
 embassy-boot = { version = "0.7", optional = true, default-features = false }
 
 # ESP32 dependencies
-esp-hal = { version = "1.1", optional = true }
+esp-hal = { version = "1.2.0-rc.0", optional = true }
 
 # Document feature
 document-features = "0.2"
@@ -299,7 +299,7 @@ nrf52832_ble = ["_nrf_ble", "_no_usb"]
 nrf52811_ble = ["_nrf_ble", "_no_usb"]
 ## Enable feature if you want to use nRF52810 with BLE.
 nrf52810_ble = ["_nrf_ble", "_no_usb"]
-_nrf_ble = ["_ble", "dep:embassy-nrf"]
+_nrf_ble = ["_ble", "dep:embassy-nrf", "trouble-host?/security-p256-cortex-m4"]
 
 ## Enable feature if you want to use ESP32C3 with BLE.
 esp32c3_ble = ["_esp_ble", "_no_usb"]
