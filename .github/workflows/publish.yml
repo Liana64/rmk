@@ -1,37 +1,55 @@
 name: Publish
 
 on:
-  # Merging a release PR publishes what it bumped. Dispatch re-runs a release
-  # that failed partway.
-  pull_request:
-    types: [closed]
+  # `push`, not `pull_request`: the environment only allows protected branches,
+  # and a pull_request run's ref is `refs/pull/N/merge`, which is not one.
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
-# Two runs would interleave their index waits and publish out of order.
-concurrency:
-  group: publish
-  cancel-in-progress: false
-
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # Needs no token and no approval, so what you approve below is a checked plan
-  # rather than a promise.
+  # Runs before the approval gate and without a token, so what you approve is a
+  # checked plan.
   plan:
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.pull_request.merged &&
-       github.event.pull_request.head.ref == 'release/prepare')
+    # Merging a release PR is open to any maintainer; a manual dispatch is not.
+    if: github.event_name != 'workflow_dispatch' || github.actor == 'HaoboGu'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      release: ${{ steps.gate.outputs.release }}
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: main
+
+      - id: gate
+        name: Publish only a merged release PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          source .github/ci/_lib.sh
+          # Ask which PR this commit came from: squash, merge and rebase each
+          # write a different message, so matching on the message is fragile.
+          branch=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" --jq '.[0].head.ref // ""')
+          if [ "$branch" = "$RELEASE_BRANCH" ]; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "not a release PR merge (head branch: ${branch:-none})"
+          fi
+
       - name: Summarise what will be published
+        if: steps.gate.outputs.release == 'true'
         run: |
           source .github/ci/_lib.sh
           {
@@ -49,9 +67,13 @@ jobs:
 
   publish:
     needs: plan
+    if: needs.plan.outputs.release == 'true'
     runs-on: ubuntu-latest
-    # Required reviewers on this environment hold the job here, and crates.io
-    # only issues a token to a run that got past them.
+    concurrency:
+      group: publish
+      cancel-in-progress: false
+    # Required reviewers hold the job here, and crates.io only issues a token to
+    # a run that got past them.
     environment: crates-io
     permissions:
       id-token: write
@@ -59,7 +81,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: main
+          # Full history so the tag step can see which tags already exist.
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2

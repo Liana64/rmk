@@ -49,6 +49,7 @@ clippy_rmk() {
 for feats in "${RMK_FEATURESETS[@]}"; do
     clippy_rmk "$feats"
 done
+cargo +stable clippy --target-dir "$clippy_target" --manifest-path rmk/Cargo.toml -- -D warnings
 cargo +stable clippy --target-dir "$clippy_target" --manifest-path rmk-config/Cargo.toml -- -D warnings
 cargo +stable clippy --target-dir "$clippy_target" --manifest-path rmk-macro/Cargo.toml -- -D warnings
 cargo +stable clippy --target-dir "$clippy_target" --manifest-path rmk-types/Cargo.toml -- -D warnings

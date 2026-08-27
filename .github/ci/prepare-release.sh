@@ -12,8 +12,11 @@ level="${1:?usage: prepare-release.sh <major|minor|patch> [crate...]}"
 shift
 if [[ $# -eq 0 ]]; then
     crates=("${RELEASE_BUMPABLE[@]}")
+    requested=" ${crates[*]} "
 else
-    crates=("$@")
+    crates=()
+    while IFS= read -r name; do crates+=("$name"); done < <(release_closure "$@")
+    requested=" $* "
 fi
 
 # Set a crate's own version, then update every `=` pin that names it.
@@ -40,6 +43,10 @@ set_version() {
 log_section "Bumping versions"
 for crate in "${crates[@]}"; do
     current="$(crate_version "$crate")"
+    if [[ ! "$current" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "$crate: cannot bump the non-numeric version $current" >&2
+        exit 1
+    fi
     IFS=. read -r major minor patch <<< "$current"
     case "$level" in
         major) next="$((major + 1)).0.0" ;;
@@ -48,8 +55,37 @@ for crate in "${crates[@]}"; do
         *) echo "unknown bump level: $level" >&2; exit 1 ;;
     esac
     set_version "$crate" "$next"
-    echo "$crate $current -> $next"
+    case "$requested" in
+        *" $crate "*) echo "$crate $current -> $next" ;;
+        *) echo "$crate $current -> $next  (pins a crate above)" ;;
+    esac
 done
+
+# set_version only rewrites pins spelled `name = { ... }` on one line. Any other
+# spelling keeps its old version, which cargo would not reject until publish.
+log_section "Checking pins"
+for crate in "${crates[@]}"; do
+    version="$(crate_version "$crate")"
+    for name in "${RELEASE_CRATES[@]}"; do
+        manifest="$(crate_manifest "$name")"
+        awk -v file="$manifest" -v c="$crate" -v v="$version" '
+            /^\[/ { table = ($0 ~ "dependencies\\." c "\\]$") }
+            $0 ~ "^" c " *= *\\{" || table {
+                if (match($0, /version *= *"=[^"]*"/)) {
+                    pin = substr($0, RSTART, RLENGTH)
+                    sub(/.*"=/, "", pin)
+                    sub(/"$/, "", pin)
+                    if (pin != v) {
+                        printf "::error file=%s,line=%d::%s pin is =%s, expected =%s\n", file, NR, c, pin, v
+                        bad = 1
+                    }
+                }
+            }
+            END { exit bad + 0 }
+        ' "$manifest" || exit 1
+    done
+done
+echo "all pins current"
 
 # Example lockfiles record rmk's version, so the `fetch-check` CI job fails if
 # they are left stale.

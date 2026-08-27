@@ -7,13 +7,19 @@ source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
 # order, then tag them. Skipping published versions makes a re-run safe.
 
 log_section "Git dependencies"
-# crates.io rejects a crate with a git dependency, and nothing else checks.
+# crates.io rejects a crate with a git dependency, and nothing else checks for one.
 for name in "${RELEASE_CRATES[@]}"; do
     manifest="$(crate_manifest "$name")"
-    if grep -nE '^[^#]*[[:space:]]git[[:space:]]*=[[:space:]]*"' "$manifest"; then
-        echo "::error file=$manifest::$name has a git dependency and cannot be published"
-        exit 1
-    fi
+    awk -v file="$manifest" -v crate="$name" '
+        /^[[:space:]]*#/ { next }
+        /^\[/ { patched = ($0 ~ /^\[patch/); next }
+        patched { next }
+        /^[[:space:]]*git[[:space:]]*=/ || /[,{][[:space:]]*git[[:space:]]*=/ {
+            printf "::error file=%s,line=%d::%s has a git dependency and cannot be published: %s\n", file, NR, crate, $0
+            bad = 1
+        }
+        END { exit bad + 0 }
+    ' "$manifest" || exit 1
 done
 echo "none"
 

@@ -20,27 +20,40 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
 
+concurrency:
+  group: release-pr
+  cancel-in-progress: false
+
 jobs:
   prepare:
+    if: github.actor == 'HaoboGu'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Prepare the release
+      - id: prepare
+        name: Prepare the release
         env:
-          # Free text, so pass it as an env var. Interpolating `${{ }}` straight
-          # into the script below would be shell injection.
+          BUMP: ${{ inputs.bump }}
           CRATES: ${{ inputs.crates }}
-        # shellcheck disable=SC2086 # space-separated crate names, split on purpose
-        run: .github/ci/prepare-release.sh "${{ inputs.bump }}" $CRATES
+        run: |
+          source .github/ci/_lib.sh
+          # $CRATES unquoted on purpose: space-separated crate names.
+          .github/ci/prepare-release.sh "$BUMP" $CRATES
+          echo "branch=$RELEASE_BRANCH" >> "$GITHUB_OUTPUT"
+
+      - id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ secrets.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
 
       - uses: peter-evans/create-pull-request@v7
         with:
-          # A PR opened with GITHUB_TOKEN does not start CI. PAT (scopes
-          # `repo` + `workflow`) gets the release PR checked like any other.
-          token: ${{ secrets.PAT || secrets.GITHUB_TOKEN }}
-          branch: release/prepare
+          token: ${{ steps.app-token.outputs.token }}
+          # publish.yml gates on this branch, so both read it from _lib.sh.
+          branch: ${{ steps.prepare.outputs.branch }}
           title: "chore(release): prepare next release"
           commit-message: "chore(release): bump versions and refresh lockfiles"
           body: |

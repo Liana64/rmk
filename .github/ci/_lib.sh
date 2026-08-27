@@ -153,6 +153,10 @@ RELEASE_CRATES=(
 # inherit `version.workspace` from rynk.
 RELEASE_BUMPABLE=(rmk-config rmk-types rmk-macro rmk rynk)
 
+# release-pr.yml opens its PR from this branch, and publish.yml publishes only
+# commits that arrived through it.
+RELEASE_BRANCH=release/prepare
+
 # The rynk host crates sit under rynk/; every other crate is a top-level
 # directory named after itself.
 crate_manifest() {
@@ -173,6 +177,33 @@ crate_version() {
     awk -F'"' '/^version = "/ { print $2; exit }' "$manifest"
 }
 
+# The named crates plus everything that pins them, in publish order.
+release_closure() {
+    local list=" $* " name dep grown=1
+    for name in "$@"; do
+        case " ${RELEASE_BUMPABLE[*]} " in
+            *" $name "*) ;;
+            *) echo "not a releasable crate: $name" >&2; return 1 ;;
+        esac
+    done
+    while [ "$grown" = 1 ]; do
+        grown=0
+        for name in "${RELEASE_BUMPABLE[@]}"; do
+            case "$list" in *" $name "*) continue ;; esac
+            for dep in $list; do
+                if grep -qE "^$dep *= *\{[^}]*version *= *\"=" "$(crate_manifest "$name")"; then
+                    list="$list$name "
+                    grown=1
+                    break
+                fi
+            done
+        done
+    done
+    for name in "${RELEASE_BUMPABLE[@]}"; do
+        case "$list" in *" $name "*) printf '%s\n' "$name" ;; esac
+    done
+}
+
 # A crate's sparse-index URL. crates.io groups names by length: 1, 2, first
 # letter, then the first two pairs of letters.
 crate_index_url() {
@@ -187,7 +218,9 @@ crate_index_url() {
 
 # Succeeds when this exact version is live on crates.io.
 crate_published() {
-    curl -sf "$(crate_index_url "$1")" | grep -qF "\"vers\":\"$2\""
+    local body
+    body="$(curl -sf --retry 3 --retry-connrefused "$(crate_index_url "$1")")" || return 1
+    grep -qF "\"vers\":\"$2\"" <<< "$body"
 }
 
 # The index lags a publish by up to a few minutes, and the next crate cannot
