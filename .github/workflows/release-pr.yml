@@ -37,9 +37,9 @@ jobs:
 
       - uses: peter-evans/create-pull-request@v7
         with:
-          # A PR opened with GITHUB_TOKEN does not start CI. RELEASE_PAT (scopes
+          # A PR opened with GITHUB_TOKEN does not start CI. PAT (scopes
           # `repo` + `workflow`) gets the release PR checked like any other.
-          token: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PAT || secrets.GITHUB_TOKEN }}
           branch: release/prepare
           title: "chore(release): prepare next release"
           commit-message: "chore(release): bump versions and refresh lockfiles"
