@@ -14,8 +14,11 @@ if [[ $# -eq 0 ]]; then
     crates=("${RELEASE_BUMPABLE[@]}")
     requested=" ${crates[*]} "
 else
+    # Assign first: a process substitution would swallow release_closure's exit
+    # status, leaving an empty crate list and a release that bumps nothing.
+    closure="$(release_closure "$@")"
     crates=()
-    while IFS= read -r name; do crates+=("$name"); done < <(release_closure "$@")
+    while IFS= read -r name; do crates+=("$name"); done <<< "$closure"
     requested=" $* "
 fi
 
@@ -92,11 +95,13 @@ echo "all pins current"
 log_section "Refreshing example lockfiles"
 bash scripts/fetch_all.sh
 
-# The publish workflow turns this section into the GitHub release notes.
-# Skipped when it already exists.
+# rmk/CHANGELOG.md is rmk's own, and publish.yml turns the new section into its
+# GitHub release notes. A release without rmk in it must not stamp a date there.
 log_section "Changelog"
 version="$(crate_version rmk)"
-if grep -q "^## \[$version\]" rmk/CHANGELOG.md; then
+if [[ " ${crates[*]} " != *" rmk "* ]]; then
+    echo "rmk is not in this release, leaving its changelog alone"
+elif grep -q "^## \[$version\]" rmk/CHANGELOG.md; then
     echo "already has a $version section"
 else
     awk -v v="$version" -v d="$(date -u +%F)" '

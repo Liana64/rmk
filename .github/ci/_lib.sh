@@ -182,9 +182,13 @@ release_closure() {
     local list=" $* " name dep grown=1
     for name in "$@"; do
         case " ${RELEASE_BUMPABLE[*]} " in
-            *" $name "*) ;;
-            *) echo "not a releasable crate: $name" >&2; return 1 ;;
+            *" $name "*) continue ;;
         esac
+        case " ${RELEASE_CRATES[*]} " in
+            *" $name "*) echo "$name takes its version from rynk; name rynk instead" >&2 ;;
+            *) echo "unknown crate: $name (releasable: ${RELEASE_BUMPABLE[*]})" >&2 ;;
+        esac
+        return 1
     done
     while [ "$grown" = 1 ]; do
         grown=0
